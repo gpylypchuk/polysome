@@ -17,6 +17,11 @@ HEADER_BYTES = 4 * HEADER_INTS
 def load_model(hf_id):
     """Loads a GPT2LMHeadModel in fp32 eval mode and checks the engine can run it."""
     model = GPT2LMHeadModel.from_pretrained(hf_id).float().eval()
+    # transformers 5 maps safetensors in place, and gpt2's wte lands on an odd address
+    # (ptr % 64 == 19). Accelerate's GEMV then dies with SIGBUS during generate. Cloning gives
+    # every parameter its own aligned buffer; tied weights share one Parameter, so they stay tied.
+    for p in model.parameters():
+        p.data = p.data.clone()
     check_supported(model)
     return model
 
